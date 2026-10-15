@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

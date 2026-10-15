@@ -1,57 +1,145 @@
-/// use openstreetmap to get city coords by using the city name from search bar
+let currentMarker;
+let searchRequestId = 0;
+
+const searchBar = document.getElementById('searchBar');
+const searchForm = document.getElementById('searchForm');
+const searchStatus = document.getElementById('searchStatus');
+
+// Leaflet map.
+const map = L.map('map').setView([15.56035, 32.533157], 6);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+// Use OpenStreetMap to find coordinates for the searched city.
 async function searchLocation(city) {
   const response = await fetch(
     `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(city)}&limit=1`
   );
-
   if (!response.ok) {
-    throw new Error("Location search failed");
+    throw new Error('Location search failed. Please try again.');
   }
-
   const results = await response.json();
-
   if (results.length === 0) {
-    throw new Error("Location not found");
+    throw new Error('Location not found. Try another city name.');
   }
-
   return results[0];
 }
-let currentMarker;
-let longitude=0
-let latitude = 0
-var marker
-// get location name from search result
-const searchBar = document.getElementById('searchBar');
-const searchButton = document.getElementById('searchButton')
-searchButton.addEventListener('click', async () => {
-const searchData = searchBar.value.trim();
-  console.log("searchData = " + searchData);
 
-// use location name to get lat and lon
-const location = await searchLocation(searchData);
-latitude = Number(location.lat);
-longitude = Number(location.lon);
-map.flyTo([latitude, longitude], 12);
-  if (currentMarker)
-    map.removeLayer(currentMarker);
-currentMarker = L.marker([latitude, longitude]).addTo(map);
-})
+// popup information
+function createWeatherPopup(data, city) {
+  const popup = document.createElement('section');
+  popup.className = 'weather-popup';
+  const heading = document.createElement('h2');
+  popup.appendChild(heading);
+  heading.textContent = data.name || city;
+  const condition = data.weather?.[0];
+  const description = condition?.description || condition?.main || 'Unavailable';
+  const details = [
+    ['Temperature', `${data.main.temp}°C`],
+    ['Weather', description],
+    ['Cloud coverage', formatMeasurement(data.clouds?.all, '%')],
+    ['Humidity', formatMeasurement(data.main.humidity, '%')],
+    ['Wind speed', formatMeasurement(data.wind?.speed, ' m/s')]
+  ];
 
-
-
-
-// leaflet map
-var map = L.map('map').setView([15.56035, 32.533157], 6);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-}).addTo(map);
-
-
-function onMapClick(e) {
-  if (currentMarker) {
-    map.removeLayer(currentMarker);
+  // add a list to put the popup details inside
+  const list = document.createElement('dl');
+  for (const [label, value] of details) {
+    const term = document.createElement('dt');
+    term.textContent = label;
+    const definition = document.createElement('dd');
+    definition.textContent = value;
+    list.append(term, definition);
   }
-  currentMarker = L.marker(e.latlng).addTo(map);
+  popup.appendChild(list);
+
+  if (/^\d{2}[dn]$/.test(condition?.icon)) {
+    const icon = document.createElement('img');
+    icon.src = `https://openweathermap.org/img/wn/${condition.icon}@2x.png`;
+    icon.alt = description;
+    icon.width = 100;
+    icon.height = 100;
+    popup.appendChild(icon);
+  }
+  return popup;
 }
-map.on('click', onMapClick);
+
+
+
+function formatMeasurement(value, unit) {
+  return Number.isFinite(value) ? `${value}${unit}` : 'Unavailable';
+}
+
+
+// Expose network and error states to the stylesheet.
+function showSearchStatus(message, state = '') {
+  searchStatus.textContent = message;
+  searchStatus.dataset.state = state;
+  searchStatus.setAttribute('role', state === 'error' ? 'alert' : 'status');
+  searchForm.setAttribute('aria-busy', String(state === 'loading'));
+}
+
+
+
+async function searchWeather() {
+
+  const requestId = ++searchRequestId;
+  const city = searchBar.value.trim();
+  if (!city) {
+    showSearchStatus('Enter a city name to search.', 'error');
+    searchBar.focus();
+    return;
+  }
+  showSearchStatus('Searching for location…', 'loading');
+  let searchedMarker;
+
+  try {
+    const location = await searchLocation(city);
+    if (requestId !== searchRequestId) return;
+    const latitude = Number(location.lat);
+    const longitude = Number(location.lon);
+    map.stop();
+    map.flyTo([latitude, longitude], 9, { duration: 1.2 });
+      searchedMarker = L.marker([latitude, longitude]).addTo(map);
+    currentMarker = searchedMarker;
+    searchedMarker.bindPopup('Loading weather…').openPopup();
+    showSearchStatus('Loading weather…', 'loading');
+
+    const response = await fetch(
+      `http://127.0.0.1:3000/api/weather?lat=${latitude}&lon=${longitude}`
+    );
+    const data = await response.json();
+    if (requestId !== searchRequestId) return;
+    if (!response.ok || !Number.isFinite(data.main?.temp)) {
+      throw new Error('Weather request failed. Please search again.');
+    }
+
+    searchedMarker.setPopupContent(createWeatherPopup(data, city)).openPopup();
+    showSearchStatus('');
+  } catch (error) {
+    if (requestId !== searchRequestId) return;
+    const message = error instanceof TypeError
+      ? 'Could not connect. Check your connection and weather server, then search again.'
+      : error.message;
+
+
+
+    if (searchedMarker) {
+      const errorCard = document.createElement('p');
+      errorCard.className = 'error-card';
+      errorCard.setAttribute('role', 'alert');
+      errorCard.textContent = message;
+      searchedMarker.setPopupContent(errorCard).openPopup();
+      showSearchStatus('');
+    } else {
+      showSearchStatus(message, 'error');
+    }
+  }
+}
+
+searchForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  searchWeather();
+});
