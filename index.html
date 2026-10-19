@@ -15,6 +15,18 @@
     <input id="searchBar" type="text" name="location" placeholder="Enter a location" >
     <button id="searchButton" type="submit">Get Weather</button>
     <button id="favButton" type="button">Add to Favourites</button>
+
+<!--share-->
+    <button id="shareModalButton" type="button">Share</button>
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+            <button class="close" type="button" aria-label="Close sharing options">&times;</button>
+            <button id="WhatsApp" type="button">Share to Whatsapp</button>
+            <button id="Clipboard" type="button">Copy to clipboard</button>
+            <button id="X" type="button">Share to X</button>
+        </div>
+    </div>
+
     <div id="searchStatus"></div>
     <div id="favList"></div>
 </form>

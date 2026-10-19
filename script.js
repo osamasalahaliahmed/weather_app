@@ -1,4 +1,5 @@
 let currentMarker;
+let currentWeather = null;
 let searchRequestId = 0;
 
 const searchBar = document.getElementById("searchBar");
@@ -111,6 +112,7 @@ async function searchWeather() {  const requestId = ++searchRequestId;
     }
 
     searchedMarker.setPopupContent(createWeatherPopup(data, city)).openPopup();
+    currentWeather = { ...data, name: data.name || city };
     showSearchStatus("");
   } catch (error) {
     if (requestId !== searchRequestId) return;
@@ -131,7 +133,22 @@ async function searchWeather() {  const requestId = ++searchRequestId;
     }
   }
 }
+function formatWeather(data) {
+  return `Weather in ${data.name}: ${data.main.temp}°C`;
+}
+function getWeatherText() {
+  if (!currentWeather) {
+    showSearchStatus("Search for a city first.", "error");
+    return null;
+  }
 
+  return formatWeather(currentWeather);
+}
+
+
+///////////////////////////
+////favourtie features/////
+///////////////////////////
 function favLocation() {
   const city = searchBar.value.trim();
   if (!city) {
@@ -174,6 +191,90 @@ function showFav() {
     });
   }
 }
+
+
+
+///////////////////////////
+//////Share features///////
+///////////////////////////
+
+
+function showShareModal(){
+
+}
+
+async function shareWeather(userChoice, weatherFormattedText = getWeatherText()) {
+  if (weatherFormattedText === null){
+    searchStatus("Search for a city first", "error")
+    return;
+  }
+  try {
+    switch (userChoice) {
+      case "copy": {
+        if (!navigator.clipboard?.writeText) {
+          showSearchStatus("Clipboard copying is unavailable.", "error");
+          return;
+        }
+
+        await navigator.clipboard.writeText(weatherFormattedText);
+        showSearchStatus("Weather copied!", "success");
+        break;
+      }
+
+      case "whatsapp": {
+        const whatsappUrl =
+          `https://wa.me/?text=${encodeURIComponent(weatherFormattedText)}`;
+
+        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+        break;
+      }
+
+      case "twitter": {
+        const twitterUrl = new URL("https://twitter.com/intent/tweet");
+        twitterUrl.searchParams.set("text", weatherFormattedText);
+
+        window.open(twitterUrl.href, "_blank", "noopener,noreferrer");
+        break;
+      }
+
+      default:
+        showSearchStatus("Choose a sharing option.", "error");
+    }
+  } catch (error) {
+    console.error("Sharing failed:", error);
+    showSearchStatus("Could not share or copy the weather.", "error");
+  }
+}
+
+var shareButton = document.getElementById("shareModalButton");
+var modal = document.getElementById("myModal");
+var span = document.getElementsByClassName("close")[0];
+var whatsappButton = document.getElementById("WhatsApp")
+var xButton= document.getElementById("X")
+var clipboardButton= document.getElementById("Clipboard")
+
+
+shareButton.addEventListener("click", () => {
+  if (getWeatherText() === null) return;
+  modal.style.display = "block";
+});
+span.addEventListener("click", () => {
+  modal.style.display = "none";
+});
+window.addEventListener("click", (event) => {
+  if (event.target === modal) {
+    modal.style.display = "none";
+  }
+});
+xButton.addEventListener("click", () => {
+  shareWeather("twitter");
+});
+whatsappButton.addEventListener("click", () => {
+  shareWeather("whatsapp");
+});
+clipboardButton.addEventListener("click", () => {
+  shareWeather("copy");
+});
 
 searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
