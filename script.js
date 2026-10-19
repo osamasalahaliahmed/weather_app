@@ -198,11 +198,6 @@ function showFav() {
 //////Share features///////
 ///////////////////////////
 
-
-function showShareModal(){
-
-}
-
 async function shareWeather(userChoice, weatherFormattedText = getWeatherText()) {
   if (weatherFormattedText === null){
     searchStatus("Search for a city first", "error")
